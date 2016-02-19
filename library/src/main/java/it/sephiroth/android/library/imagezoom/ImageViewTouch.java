@@ -33,6 +33,7 @@ public class ImageViewTouch extends ImageViewTouchBase {
     protected boolean mScrollEnabled = true;
     private OnImageViewTouchDoubleTapListener mDoubleTapListener;
     private OnImageViewTouchSingleTapListener mSingleTapListener;
+    private OnImageViewTouchFlingListener mFlingListener;
 
     public ImageViewTouch(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -82,6 +83,10 @@ public class ImageViewTouch extends ImageViewTouchBase {
 
     public void setSingleTapListener(OnImageViewTouchSingleTapListener listener) {
         mSingleTapListener = listener;
+    }
+
+    public void setFlingListener(OnImageViewTouchFlingListener listener) {
+        mFlingListener = listener;
     }
 
     public void setDoubleTapEnabled(boolean value) {
@@ -182,12 +187,15 @@ public class ImageViewTouch extends ImageViewTouchBase {
     }
 
     public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-        if (!canScroll()) {
-            return false;
+        if (DEBUG) {
+            Log.i(TAG, String.format("onFling velocityX=%f velocityY=%f", velocityX, velocityY));
         }
 
-        if (DEBUG) {
-            Log.i(TAG, "onFling");
+        if (!canScroll()) {
+            // スクロールが必要ない＝端末ウィンドウ内に画像が収まっているときのみ、
+            // フリックリスナーを発動させる
+            fireFlingEvent(e1, e2, velocityX, velocityY);
+            return false;
         }
 
         if (Math.abs(velocityX) > (mMinFlingVelocity * 4) || Math.abs(velocityY) > (mMinFlingVelocity * 4)) {
@@ -217,6 +225,36 @@ public class ImageViewTouch extends ImageViewTouchBase {
             return true;
         }
         return false;
+    }
+
+    private static final float FIRE_FLING_VELOCITY_THRESHOLD = 4000;
+
+    private void fireFlingEvent(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+        if(mFlingListener == null) return;
+
+        float absVelX = Math.abs(velocityX);
+        float absVelY = Math.abs(velocityY);
+        // XかY軸のいずれかのフリック移動量が、しきい値を超えないとイベントを発動させない
+        if(Math.max(absVelX, absVelY) < FIRE_FLING_VELOCITY_THRESHOLD) return;
+
+        if(absVelX <= absVelY) {
+            // Y軸の動きと判定。Y軸は下が正の値となるので注意
+            if(velocityY >= 0) {
+                mFlingListener.onFlingDown();
+            } else {
+                mFlingListener.onFlingUp();
+            }
+            return;
+        } else {
+            // X軸の動きと判定
+            if(velocityX >= 0) {
+                mFlingListener.onFlingRight();
+            } else {
+                mFlingListener.onFlingLeft();
+            }
+            return;
+        }
+
     }
 
     public boolean onDown(MotionEvent e) {
@@ -423,5 +461,12 @@ public class ImageViewTouch extends ImageViewTouchBase {
 
     public interface OnImageViewTouchSingleTapListener {
         void onSingleTapConfirmed();
+    }
+
+    public interface OnImageViewTouchFlingListener {
+        void onFlingUp();
+        void onFlingDown();
+        void onFlingRight();
+        void onFlingLeft();
     }
 }
